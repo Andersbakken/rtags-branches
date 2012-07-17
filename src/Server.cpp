@@ -119,6 +119,8 @@ bool Server::init(const Options &options)
 
     mCompletions = new Completions(mOptions.maxCompletionUnits);
 
+    mProjectsDir = mOptions.path + "projects/";
+
     Messages::init();
 
     for (int i=0; i<10; ++i) {
@@ -184,6 +186,7 @@ bool Server::init(const Options &options)
         }
         Location::init(pathsToIds, idsToPaths, maxId);
     }
+
     mServer->clientConnected().connect(this, &Server::onNewConnection);
 
     error() << "running with " << mOptions.defaultArguments << " clang version " << RTags::eatString(clang_getClangVersion());
