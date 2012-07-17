@@ -37,8 +37,7 @@ public:
         NoOptions = 0x0,
         NoClangIncludePath = 0x1,
         UseDashB = 0x2,
-        NoValidateOnStartup = 0x4,
-        ClearDatadir = 0x8
+        NoValidateOnStartup = 0x4
     };
     enum DatabaseType {
         Symbol,
@@ -57,7 +56,6 @@ public:
     ScopedDB db(DatabaseType type, ReadWriteLock::LockType lockType, const Path &path = Path()) const;
     struct Options {
         Options() : options(0), cacheSizeMB(0), maxCompletionUnits(0), threadCount(0) {}
-        Path path;
         unsigned options;
         List<ByteArray> defaultArguments;
         long cacheSizeMB;
@@ -68,8 +66,9 @@ public:
     bool init(const Options &options);
     std::tr1::shared_ptr<Indexer> indexer() const;
     ByteArray name() const { return mOptions.socketPath; }
+    static bool setBaseDirectory(const Path &base, bool clear);
     Path databaseDir(DatabaseType type);
-    Path projectsPath() const;
+    static Path projectsPath();
     ThreadPool *threadPool() const { return mThreadPool; }
     void onNewConnection();
     signalslot::Signal2<int, const List<ByteArray> &> &complete() { return mComplete; }
@@ -87,7 +86,6 @@ protected:
     void make(const Path &path, List<ByteArray> makefileArgs = List<ByteArray>(),
               const List<ByteArray> &extraFlags = List<ByteArray>(), Connection *conn = 0);
 private:
-    void clearDataDir();
     struct Project;
     Project *setCurrentProject(Project *project);
     Project *initProject(const Path &path);
@@ -120,6 +118,7 @@ private:
     Map<int, Connection*> mPendingLookups;
     bool mVerbose;
     int mJobId;
+    static Path sBase;
     Map<Path, MakefileInformation> mMakefiles;
     FileSystemWatcher mMakefilesWatcher;
     Database *mDBs[DatabaseTypeCount - ProjectSpecificDatabaseTypeCount];
@@ -142,7 +141,7 @@ private:
 
     Map<Path, Project*> mProjects;
     Project *mCurrentProject;
-    Path mProjectsDir;
+    static Path sProjectsDir;
     ThreadPool *mThreadPool;
     signalslot::Signal2<int, const List<ByteArray> &> mComplete;
     Completions *mCompletions;

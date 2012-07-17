@@ -121,7 +121,8 @@ int main(int argc, char** argv)
     const char *logFile = 0;
     unsigned logFlags = 0;
     int logLevel = 0;
-    Path dataDir = RTags::rtagsDir();
+    bool clearDataDir = false;
+    Path datadir = RTags::rtagsDir();
     const ByteArray shortOptions = RTags::shortOptions(opts);
     int cacheSize = 128;
     int maxCompletionUnits = 10;
@@ -157,7 +158,7 @@ int main(int argc, char** argv)
             options |= Server::NoValidateOnStartup;
             break;
         case 'd':
-            dataDir = Path::resolved(optarg);
+            datadir = Path::resolved(optarg);
             break;
         case 'p':
             options |= Server::NoClangIncludePath;
@@ -166,7 +167,7 @@ int main(int argc, char** argv)
             enableSignalHandler = false;
             break;
         case 'C':
-            options |= Server::ClearDatadir;
+            clearDataDir = true;
             break;
         case 'c': {
             bool ok;
@@ -222,15 +223,18 @@ int main(int argc, char** argv)
                 logLevel, logFile ? logFile : "", logFlags);
         return 1;
     }
+    if (!Server::setBaseDirectory(datadir, clearDataDir))
+        return 1;
+    if (clearDataDir) {
+        warning("Removing contents of cache directory [%s]", datadir.constData());
+    }
+
     warning("Running with %d jobs", jobs);
 
     EventLoop loop;
 
     Server *server = new Server;
     Server::Options serverOpts;
-    serverOpts.path = dataDir;
-    if (!serverOpts.path.endsWith('/'))
-        serverOpts.path.append('/');
     serverOpts.maxCompletionUnits = maxCompletionUnits;
     serverOpts.options = options;
     serverOpts.defaultArguments = defaultArguments;
