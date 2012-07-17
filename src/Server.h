@@ -98,7 +98,7 @@ private:
     void handleCreateOutputMessage(CreateOutputMessage *message, Connection *conn);
     void fixIts(const QueryMessage &query, Connection *conn);
     void errors(const QueryMessage &query, Connection *conn);
-    int followLocation(const QueryMessage &query);
+    void followLocation(const QueryMessage &query, Connection *conn);
     int cursorInfo(const QueryMessage &query);
     int referencesForLocation(const QueryMessage &query);
     int referencesForName(const QueryMessage &query);

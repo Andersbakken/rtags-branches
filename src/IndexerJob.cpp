@@ -110,6 +110,9 @@ static inline int writeFileInformation(uint32_t fileId, const List<ByteArray> &a
                 << Location::path(fileId) << args << lastTouched;
     }
     const char *ch = reinterpret_cast<const char*>(&fileId);
+    error("%d (%s) to %d %d %d %d", fileId, Location::path(fileId).constData(), ch[0], ch[1], ch[2], ch[3]);
+
+    assert(sizeof(fileId) == 4);
     return db->setValue(Slice(ch, sizeof(fileId)), FileInformation(lastTouched, args));
 }
 
@@ -787,9 +790,10 @@ void IndexerJob::execute()
 
     mDependencies[mFileId].insert(mFileId);
     const Path srcRoot = mIndexer->srcRoot();
-    // error() << "writing file information " << mFileId << " " << mIn;
-    writeFileInformation(mFileId, mArgs, timeStamp,
-                         Server::instance()->db(Server::FileInformation, ReadWriteLock::Write, srcRoot));
+    int l = writeFileInformation(mFileId, mArgs, timeStamp,
+                                 Server::instance()->db(Server::FileInformation, ReadWriteLock::Write, srcRoot));
+    error() << "writing file information " << mFileId << " " << mIn << " " << l << " bytes";
+
     bool compileError = false;
     if (!mUnit) {
         compileError = true;

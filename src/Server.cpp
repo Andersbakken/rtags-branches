@@ -182,6 +182,7 @@ bool Server::init(const Options &options)
             maxId = std::max(fileId, maxId);
             idsToPaths[fileId] = path;
             pathsToIds[path] = fileId;
+            // printf("loading fileids: %d %s\n", fileId, path.constData());
             it->next();
         }
         Location::init(pathsToIds, idsToPaths, maxId);
@@ -404,8 +405,9 @@ void Server::handleQueryMessage(QueryMessage *message, Connection *conn)
         conn->finish();
         return;
     case QueryMessage::FollowLocation:
-        id = followLocation(*message);
-        break;
+        followLocation(*message, conn);
+        conn->finish();
+        return;
     case QueryMessage::ReferencesLocation:
         id = referencesForLocation(*message);
         break;
@@ -450,21 +452,36 @@ int Server::nextId()
     return mJobId;
 }
 
-int Server::followLocation(const QueryMessage &query)
+void Server::followLocation(const QueryMessage &query, Connection *conn)
 {
     const Location loc = Location::decodeClientLocation(query.query());
     if (loc.isNull()) {
-        return 0;
+        return;
     }
     updateProjectForLocation(loc);
-
     error("rc -f %s", loc.key().constData());
 
-    FollowLocationJob *job = new FollowLocationJob(loc, query);
-    job->setId(nextId());
-    startJob(job);
-
-    return job->id();
+    ScopedDB db = Server::instance()->db(Server::Symbol, ReadWriteLock::Read);
+    CursorInfo cursorInfo = RTags::findCursorInfo(db, loc);
+    if (!cursorInfo.target.isNull()) {
+        switch (cursorInfo.kind) {
+        case CXCursor_FunctionDecl:
+        case CXCursor_CXXMethod:
+        case CXCursor_Destructor:
+        case CXCursor_Constructor:
+            break;
+        default: {
+            const CursorInfo target = RTags::findCursorInfo(db, cursorInfo.target);
+            // error() << "cursorInfo is" << RTags::eatString(clang_getCursorKindSpelling(cursorInfo.kind))
+            //          << RTags::eatString(clang_getCursorKindSpelling(target.kind));
+            if (!target.isDefinition && !target.target.isNull()) {
+                conn->write(target.target.key(query.keyFlags()));
+                return;
+            }
+            break; }
+        }
+        conn->write(cursorInfo.target.key(query.keyFlags()));
+    }
 }
 
 int Server::cursorInfo(const QueryMessage &query)

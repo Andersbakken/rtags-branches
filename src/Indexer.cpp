@@ -111,14 +111,21 @@ void Indexer::initDB(InitMode mode, const ByteArray &pattern)
             while (it->isValid()) {
                 const Slice key = it->key();
                 const uint32_t fileId = *reinterpret_cast<const uint32_t*>(key.data());
+                assert(key.size() == 4);
                 const Path path = Location::path(fileId);
+                error("%d from %d %d %d %d => %s (%d bytes)", fileId, key.data()[0], key.data()[1], key.data()[2], key.data()[3], path.constData(),
+                      it->rawValue().size());
+                // it->next();
+                // continue;
                 if (path.isFile()) {
                     const FileInformation fi = it->value<FileInformation>();
+                    error() << "loaded from fileInformationDB " << fileId << " " << path << " " << it->rawValue().size() << " bytes " << fi.compileArgs;
                     if (!fi.compileArgs.isEmpty()) {
 #ifdef RTAGS_DEBUG
                         if (path.isHeader() && !RTags::isPch(fi.compileArgs)) {
                             error() << fileId << " " << path << " " << fi.compileArgs << " " << fileId;
-                            assert(0);
+                            it->next();
+                            continue;
                         }
 #endif
                         ++checked;
@@ -275,11 +282,11 @@ void Indexer::onJobFinished(IndexerJob *job)
                 }
             }
         }
-        const int idx = mJobCounter - (mJobs.size() + mWaitingForPch.size());
-        error("[%3d%%] %d/%d %s. Pending jobs %d. %d mb mem.",
-              static_cast<int>(round((double(idx) / double(mJobCounter)) * 100.0)), idx, mJobCounter,
-              job->mMessage.constData(), mJobs.size() + mWaitingForPch.size(),
-              int((MemoryMonitor::usage() / (1024 * 1024))));
+        // const int idx = mJobCounter - (mJobs.size() + mWaitingForPch.size());
+        // error("[%3d%%] %d/%d %s. Pending jobs %d. %d mb mem.",
+        //       static_cast<int>(round((double(idx) / double(mJobCounter)) * 100.0)), idx, mJobCounter,
+        //       job->mMessage.constData(), mJobs.size() + mWaitingForPch.size(),
+        //       int((MemoryMonitor::usage() / (1024 * 1024))));
         IndexerJob *waiting = 0;
         if (mWaitingForAbort.remove(job->mFileId, &waiting)) {
             assert(waiting);
