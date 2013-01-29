@@ -728,12 +728,13 @@ void Server::processSourceFile(GccArguments args)
         SourceInformation c(Path(), arguments, args.compiler());
         for (int i=0; i<count; ++i) {
             c.sourceFile = inputFiles.at(i);
-            const SourceInformation existing = project->sourceInfo(Location::insertFile(c.sourceFile));
+            SourceInformation existing = project->sourceInfo(Location::insertFile(c.sourceFile));
+            if (existing.merge(
             if (testLog(Debug)) {
                 debug() << "comparing" << c.sourceFile
                         << (existing != c) << (c.sourceFile.lastModified() > existing.parsed)
-                        << RTags::timeToString(c.sourceFile.lastModified())
-                        << RTags::timeToString(existing.parsed);
+                        << ByteArray::timeToString(c.sourceFile.lastModified())
+                        << ByteArray::timeToString(existing.parsed);
             }
             if (existing != c || c.sourceFile.lastModified() > existing.parsed) {
                 project->index(c, IndexerJob::Makefile);
