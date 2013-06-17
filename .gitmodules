@@ -10,3 +10,9 @@
 [submodule "src/rparser"]
 	path = src/rparser
 	url = git@github.com:Andersbakken/rparser.git
+[submodule "src/escope"]
+	path = src/escope
+	url = https://github.com/Constellation/escope.git
+[submodule "src/esrefactor"]
+	path = src/esrefactor
+	url = https://github.com/ariya/esrefactor.git
