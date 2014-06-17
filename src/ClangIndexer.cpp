@@ -912,6 +912,11 @@ bool ClangIndexer::handleCursor(const CXCursor &cursor, CXCursorKind kind, const
 
 bool ClangIndexer::parse()
 {
+    for (int i=0; i<10; ++i) {
+        printf("%d\n", i);
+        sleep(1);
+    }
+
     StopWatch sw;
     assert(!mClangUnit);
     assert(!mIndex);
@@ -923,7 +928,7 @@ bool ClangIndexer::parse()
     RTags::parseTranslationUnit(sourceFile, mSource.toCommandLine(commandLineFlags), mClangUnit,
                                 mIndex, 0, 0, flags, &mClangLine);
 
-    warning() << "loading unit " << mClangLine << " " << (mClangUnit != 0);
+    error() << "loading unit " << mClangLine << " " << (mClangUnit != 0);
     if (mClangUnit) {
         clang_getInclusions(mClangUnit, ClangIndexer::inclusionVisitor, this);
         mParseDuration = sw.elapsed();

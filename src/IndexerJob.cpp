@@ -18,11 +18,6 @@ IndexerJob::IndexerJob()
 {
 }
 
-IndexerJob::~IndexerJob()
-{
-    delete process;
-}
-
 bool IndexerJob::launchProcess()
 {
     static Path rp;

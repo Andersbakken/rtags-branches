@@ -51,7 +51,6 @@ public:
 
     IndexerJob(const Source &source, uint32_t flags, const Path &project);
     IndexerJob();
-    ~IndexerJob();
 
     bool launchProcess();
     bool update(const Source &source, uint32_t flags);
