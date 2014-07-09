@@ -1317,7 +1317,9 @@ void Server::suspendFile(const QueryMessage &query, Connection *conn)
 void Server::syncProject(const QueryMessage &qyery, Connection *conn)
 {
     if (std::shared_ptr<Project> project = currentProject()) {
-        project->startSync();
+        if (!project->startSync(Project::Sync_Synchronous))
+            project->startSync(Project::Sync_Asynchronous);
+
     } else {
         conn->write("No active project");
     }

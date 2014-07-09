@@ -123,7 +123,11 @@ public:
         std::lock_guard<std::mutex> lock(mMutex);
         serializer << mVisitedFiles;
     }
-    void startSync();
+    enum SyncMode {
+        Sync_Asynchronous,
+        Sync_Synchronous
+    };
+    bool startSync(SyncMode mode);
 private:
     void updateContents(RestoreThread *thread);
     void watch(const Path &file);

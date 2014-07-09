@@ -133,25 +133,31 @@ public:
     virtual void run()
     {
         if (std::shared_ptr<Project> project = mProject.lock()) {
-            project->mJobCounter = project->mJobs.size();
-            Project::SyncData data = project->syncDB();
-            StopWatch sw;
-            project->save();
-            const int saveTime = sw.elapsed();
-            String msg;
-            Log(&msg) << "Jobs took" << (static_cast<double>(project->mTimer.elapsed()) / 1000.0)
-                      << "secs, dirtying took"
-                      << (static_cast<double>(data.dirtyTime) / 1000.0) << "secs, syncing took"
-                      << (static_cast<double>(data.syncTime) / 1000.0) << " secs, saving took"
-                      << (static_cast<double>(saveTime) / 1000.0) << " secs, using"
-                      << MemoryMonitor::usage() / (1024.0 * 1024.0) << "mb of memory"
-                      << data.symbols << "symbols" << data.symbolNames << "symbolNames";
-            project->mTimer.start();
-            EventLoop::mainEventLoop()->callLater([project,msg]() {
+            const String msg = SyncThread::sync(project);
+            EventLoop::mainEventLoop()->callLater([project, msg]() {
                     error() << msg;
                     project->onSynced();
                 });
         }
+    }
+
+    static String sync(const std::shared_ptr<Project> &project)
+    {
+        project->mJobCounter = project->mJobs.size();
+        Project::SyncData data = project->syncDB();
+        StopWatch sw;
+        project->save();
+        const int saveTime = sw.elapsed();
+        String msg;
+        Log(&msg) << "Jobs took" << (static_cast<double>(project->mTimer.elapsed()) / 1000.0)
+                  << "secs, dirtying took"
+                  << (static_cast<double>(data.dirtyTime) / 1000.0) << "secs, syncing took"
+                  << (static_cast<double>(data.syncTime) / 1000.0) << " secs, saving took"
+                  << (static_cast<double>(saveTime) / 1000.0) << " secs, using"
+                  << MemoryMonitor::usage() / (1024.0 * 1024.0) << "mb of memory"
+                  << data.symbols << "symbols" << data.symbolNames << "symbolNames";
+        project->mTimer.start();
+        return msg;
     }
     std::weak_ptr<Project> mProject;
 };
@@ -169,7 +175,7 @@ Project::Project(const Path &path)
         mWatcher.removed().connect(std::bind(&Project::reloadFileManager, this));
         mWatcher.added().connect(std::bind(&Project::reloadFileManager, this));
     }
-    mSyncTimer.timeout().connect([this](Timer *) { this->startSync(); });
+    mSyncTimer.timeout().connect([this](Timer *) { this->startSync(Sync_Asynchronous); });
     mDirtyTimer.timeout().connect(std::bind(&Project::onDirtyTimeout, this, std::placeholders::_1));
 }
 
@@ -443,7 +449,7 @@ void Project::onJobFinished(const std::shared_ptr<IndexData> &indexData, const s
         if (mJobs.isEmpty()) {
             mSyncTimer.restart(indexData->flags & IndexerJob::Dirty ? 0 : SyncTimeout, Timer::SingleShot);
         } else if (options.syncThreshold && mPendingData.size() >= options.syncThreshold) {
-            startSync();
+            startSync(Sync_Asynchronous);
         }
     } else {
         jobData->job.reset();
@@ -943,17 +949,25 @@ String Project::fixIts(uint32_t fileId) const
     return out;
 }
 
-void Project::startSync()
+bool Project::startSync(SyncMode mode)
 {
     if (mState != Loaded) {
-        mSyncTimer.restart(SyncTimeout, Timer::SingleShot);
-        return;
+        if (mode == Sync_Asynchronous)
+            mSyncTimer.restart(SyncTimeout, Timer::SingleShot);
+        return false;
     }
     assert(mState == Loaded);
     mState = Syncing;
     mSyncTimer.stop();
-    SyncThread *thread = new SyncThread(shared_from_this());
-    thread->start();
+    if (mode == Sync_Synchronous) {
+        const String msg = SyncThread::sync(shared_from_this());
+        error() << msg;
+        onSynced();
+    } else {
+        SyncThread *thread = new SyncThread(shared_from_this());
+        thread->start();
+    }
+    return true;
 }
 
 void Project::reloadFileManager()
@@ -1088,7 +1102,9 @@ bool Project::hasSource(const Source &source) const
 {
     const uint64_t key = source.key();
     auto it = mSources.lower_bound(Source::key(source.fileId, 0));
-    const bool disallowMultiple = Server::instance()->options().options & Server::DisallowMultipleSources;
+    const auto &options = Server::instance()->options();
+    const bool disallowMultiple = options.options & Server::DisallowMultipleSources;
+    const bool ignoreExistingFiles = options.options & Server::NoFileSystemWatch;
     bool found = false;
     while (it != mSources.end()) {
         uint32_t f, b;
@@ -1097,6 +1113,12 @@ bool Project::hasSource(const Source &source) const
             break;
         }
         found = true;
+        if (ignoreExistingFiles) {
+            // When we're not watching the file system, we ignore
+            // updating compiles. This means that you always have to
+            // do check-reindex to build existing files!
+            return true;
+        }
         if (it->first == key) {
             return it->second.compareArguments(source);
             // if the build key is the same we want to return false if the arguments have updated
